@@ -28,4 +28,10 @@ The library exports only `krutho_*` symbols. Everything else is hidden. Link aga
 
 ## Verify before you ship
 
-See `VERIFY.md`. Verification is offline and needs only `ssh-keygen` and a SHA-256 tool.
+Run `verify-release.sh` on the downloaded files. It performs every step in `VERIFY.md`, stops at the first failure and exits 0 only if every check passed:
+
+```sh
+./verify-release.sh -r assets -k keys-src/KEYS -a allowed_signers -p <file>=<sha256> ...
+```
+
+`VERIFY.md` has the exact command, the pinned `allowed_signers` line and an explanation of each step. Verification is offline once you have the files. It needs `ssh-keygen` (OpenSSH, tested with 10.3 and 9.2), `sha256sum` or `shasum -a 256`, `date`, `awk`, `grep`, `cut`, `sort`, `diff`, `sed`, `mktemp` and `bash` 3.2 or later. To download the files you need `git` and `gh`, or a browser.
