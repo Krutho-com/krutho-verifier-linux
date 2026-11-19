@@ -1,35 +1,31 @@
 # Krutho verifier for Linux
 
-Signed Krutho verifier library for Linux (x86_64, aarch64). It verifies Krutho credentials inside your own software. This repository carries releases only: binaries, a header, checksums and signatures. It carries no source.
-
-**Licence:** the Krutho Verifier Binary Licence (Pilot), approved 2026-11-18. See `LICENSE`. The licence allows use and redistribution of the unmodified signed binary, alone or bundled in other software and container images, with the licence and `NOTICES.md` alongside.
+The Krutho verifier library for Linux. It verifies Krutho credentials inside your own software. Krutho publishes the binaries here for the Seinn pilot and others. This repository carries releases only: binaries, a header, checksums and signatures. It carries no source.
 
 ## What a release carries
 
-Each GitHub Release (tag `verifier-v<version>`, first `verifier-v0.1.0`) has these files:
+Each GitHub Release (tag `verifier-linux-v<version>`, first `verifier-linux-v0.1.0`) has these files:
 
 - `libkrutho_verifier-linux-x86_64.so`
 - `libkrutho_verifier-linux-aarch64.so`
-- `krutho/verifier_sdk.h`, the C header
-- `SHA256SUMS`, hashes of the files above plus `LICENSE` and `NOTICES.md`
+- `krutho_verifier.h`, the C header
+- `NOTICES.md`, the third-party notices with the full license texts
+- `SHA256SUMS`, the SHA-256 hashes of the four files above, by bare name
 - `SHA256SUMS.sig`, an OpenSSH signature over `SHA256SUMS`, made by a signing key that the Krutho release root key certifies
-- `LICENSE` and `NOTICES.md`
 
-The two `.so` names carry the architecture because release assets share one flat list. Install the one for your architecture as `libkrutho_verifier.so`. Do not alter its bytes.
+The two `.so` names carry the architecture because release assets share one flat list. Install the one for your architecture under the name your software loads, and do not alter its bytes.
 
-## Requirements
+## Supported platforms
 
+- Linux on x86_64 or aarch64.
 - glibc 2.36 or later, which is Debian 12 (bookworm) or later.
-- x86_64 or aarch64.
+
+The first release has no macOS build.
 
 ## ABI
 
-The library exports only `krutho_*` symbols. Everything else is hidden. Link against the header's functions and nothing else.
+The library exports only `krutho_*` symbols. Everything else is hidden. Link against the functions in `krutho_verifier.h` and nothing else.
 
 ## Verify before you ship
 
 See `VERIFY.md`. Verification is offline and needs only `ssh-keygen` and a SHA-256 tool.
-
-## Redistributing
-
-Ship the `.so` unmodified, with `LICENSE`, `NOTICES.md`, `SHA256SUMS` and `SHA256SUMS.sig`. Your own software keeps its own licence.
