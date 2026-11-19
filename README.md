@@ -28,7 +28,7 @@ The library exports only `krutho_*` symbols. Everything else is hidden. Link aga
 
 ## Verify before you ship
 
-Run `verify-release.sh` on the downloaded files. It performs steps 2 to 6 of `VERIFY.md` (step 1 is the download), stops at the first failure and exits 0 only if every check passed and every pinned file matched. It requires at least one `-p` pin, because the signed list names no version, and it exits 3 without one:
+Run `verify-release.sh` on the downloaded files. It performs steps 2 to 6 of `VERIFY.md` (step 1 is the download), stops at the first failure and exits 0 only if every check passed and every pinned file matched. It requires at least one `-p` pin, because the signed list names no version, and it exits 3 without one. `--signature-only` runs steps 2 to 5 without a pin, exits 0 and says the version was not pinned; it never prints PASS:
 
 ```sh
 ./verify-release.sh -r assets -k keys-src/KEYS -a allowed_signers -p <file>=<sha256> ...

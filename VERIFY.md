@@ -86,7 +86,7 @@ Before a signing certificate expires, Krutho re-signs every supported release wi
 
 ## What the script checks
 
-These are the checks behind steps 2 to 6. This section explains them so you can read the script and judge its output. It is not a procedure to run by hand. The script copies every input to a private temporary directory before it checks it, so a file that changes on disk during the run cannot change the result, and it turns any unexpected error into a failed check. Commands typed by hand do neither.
+These are the checks behind steps 2 to 6. This section explains them so you can read the script and judge its output. It is not a procedure to run by hand. The script copies the keys, the revocation inputs, `allowed_signers`, `SHA256SUMS` and its signature to a private temporary directory before it checks them, and it turns any unexpected error into a failed check. It hashes the four release files where they sit, so keep the release directory private to the user running the check (not writable by anyone else), and install the files from that same directory after the script exits 0. Commands typed by hand do neither.
 
 ### 2. The root key against the pin
 
