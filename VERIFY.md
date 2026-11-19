@@ -11,14 +11,15 @@ Tags follow `verifier-linux-v<version>`. The first release is `verifier-linux-v0
 
 ## Rule
 
-Stop on any mismatch, any expired statement, any command error and any failed signature. Use nothing from a release that fails a check.
+`verify-release.sh` is the only supported way to verify a release. Use nothing from a release unless the script exits 0 and its last line starts with `PASS:`. Stop on any other result: a failed check, a changed file, an expired statement, a bad signature, a missing pin or an error.
 
 ## What you need
 
 - A recent OpenSSH, one whose `ssh-keygen` supports `-Y verify` with `-r`. Tested with OpenSSH 10.3 and with the OpenSSH 9.2 that Debian 12 ships.
-- These tools: `ssh-keygen`, `sha256sum` or `shasum -a 256`, `date`, `awk`, `grep`, `cut`, `sort`, `diff`, `sed`, `mktemp`, and `bash` (3.2 or later) to run `verify-release.sh`. Linux and macOS have them. To download the files you need `git` and `gh`, or a browser.
+- These tools: `ssh-keygen`, `sha256sum` or `shasum -a 256`, `date`, `awk`, `grep`, `cut`, `sort`, `diff`, `sed`, `mktemp`, `cat`, and `bash` (3.2 or later) to run `verify-release.sh`. Linux and macOS have them. To download the files you need `git` and `gh`, or a browser.
 - The root key fingerprint, which you confirm with Krutho out of band. A fingerprint read from this repository proves nothing about this repository.
 - The release root's `KEYS/` directory, from the current `main` of https://github.com/Krutho-com/krutho-sdk-swift. Always use the current copy: an old copy hides later revocations. It holds `release-root.pub`, `release-signing-cert-1.pub`, `revocation.txt`, `revocation.txt.sig` and `revoked.krl`.
+- The SHA-256 of each release file you use, from your own pinned source (see step 6).
 
 ## The allowed_signers line
 
@@ -28,19 +29,23 @@ Pin this line in a file named `allowed_signers`:
 krutho-release cert-authority,namespaces="krutho-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILHsuJEnJcKR5U+gR9DAUyBS4im4dy0+doygks8pjQOy
 ```
 
-The file must contain exactly this one line and nothing else: no second line and no comment. Confirm that its fingerprint matches the one you confirmed with Krutho. Everything below trusts this pinned key, not the copy you download.
+The file must contain exactly this one line and nothing else: no second line, no blank or whitespace-only line and no comment. Confirm that its fingerprint matches the one you confirmed with Krutho. Everything below trusts this pinned key, not the copy you download.
 
-## Run the script
-
-`verify-release.sh`, in the root of this repository, performs every step below and stops at the first failure. It exits 0 only if every check passed, and it exits non-zero with a message that names the failed step otherwise. Read the script before you rely on it, or follow the steps by hand. Keep your reviewed copy with your pins.
-
-Download the release files and the keys, then run it:
+## Step 1. Download
 
 ```sh
 TAG=verifier-linux-v0.1.0
 mkdir assets && gh release download "$TAG" -R Krutho-com/krutho-verifier-linux -D assets
 git clone --depth 1 https://github.com/Krutho-com/krutho-sdk-swift.git keys-src
+```
 
+Without the GitHub CLI, download the same files from the release page. The script does not download anything.
+
+## Run the script
+
+`verify-release.sh`, in the root of this repository, performs steps 2 to 6 below and stops at the first failure. Read the script before you rely on it. Keep your reviewed copy with your pins.
+
+```sh
 ./verify-release.sh -r assets -k keys-src/KEYS -a allowed_signers \
   -p NOTICES.md=<sha256 from your source> \
   -p krutho_verifier.h=<sha256 from your source> \
@@ -52,14 +57,26 @@ echo "exit status $?"
 - `-r` is the directory with the four files, `SHA256SUMS` and `SHA256SUMS.sig`.
 - `-k` is the `KEYS` directory from the current `main` of `krutho-sdk-swift`.
 - `-a` is your pinned `allowed_signers` file.
-- `-p NAME=SHA256` is the hash from your own source for one file. Repeat it for each file you use. Without any `-p`, the script cannot tell which version the files are, and it says so (step 6).
+- `-p NAME=SHA256` is the hash from your own source for one file. Repeat it for each file you use. At least one `-p` is required, because the signed list names no version.
+- `--signature-only` runs steps 2 to 5 without a pin. See below.
 - `-h` prints the usage.
 
-Exit status 0 and the last line `PASS: the release in <directory> verified.` mean that every check passed. Status 1 means a check failed. Status 2 means bad usage or a missing tool. Use nothing from the release unless the status is 0.
+Exit status:
+
+| Status | Meaning |
+|---|---|
+| 0 | Every check passed and every pin matched. The last line is `PASS: ...`. With `--signature-only`, steps 2 to 5 passed and the output says `SIGNATURE ONLY: version not pinned`. |
+| 1 | A check failed, or an unexpected error occurred. The message on stderr names the step. |
+| 2 | Bad usage, or a required tool is missing. |
+| 3 | Steps 2 to 5 passed, but you gave no `-p` pin: `not verified: no version pin`. |
+
+With status 0 and at least one `-p` pin, every check passed and each pinned file equals its pin. The `PASS:` line says how many of the four files you pinned. A `note:` line above it lists any file without a pin. Use only the files you pinned.
+
+`--signature-only` is for a check that cannot know the version, for example a first look at a release before you pin it. A `SIGNATURE ONLY` result shows that Krutho signed these files. It does not show which version they are, so it never replaces step 6. Do not release or install on it. It cannot be combined with `-p`.
 
 ## For software that downloads the library
 
-Pin the exact release in your own source: the version and the SHA-256 of each file you use. Never fetch "latest". An operator may also place the files in your data directory by hand. Run the same checks on those files before use. Step 6 below is part of the verification, not an extra.
+Pin the exact release in your own source: the version and the SHA-256 of each file you use. Never fetch "latest". An operator may also place the files in your data directory by hand. Run `verify-release.sh` on those files before use. Step 6 is part of the verification, not an extra.
 
 ## Certificate expiry
 
@@ -67,50 +84,17 @@ Signing certificate 1 (`KEYS/release-signing-cert-1.pub`) is valid to 2027-11-06
 
 Before a signing certificate expires, Krutho re-signs every supported release with the renewed certificate and publishes the renewed certificate in `KEYS`. The re-signing produces only a new `SHA256SUMS.sig`. The four files and `SHA256SUMS` stay byte for byte the same, so the hashes you pinned stay valid. Download the release again to get the new `SHA256SUMS.sig`, and use the current `KEYS`.
 
-## The steps, one by one
+## What the script checks
 
-`verify-release.sh` performs these steps. They explain what each check does, and you can run them by hand.
+These are the checks behind steps 2 to 6. This section explains them so you can read the script and judge its output. It is not a procedure to run by hand. The script copies every input to a private temporary directory before it checks it, so a file that changes on disk during the run cannot change the result, and it turns any unexpected error into a failed check. Commands typed by hand do neither.
 
-## 1. Download
+### 2. The root key against the pin
 
-```sh
-TAG=verifier-linux-v0.1.0
-mkdir assets && gh release download "$TAG" -R Krutho-com/krutho-verifier-linux -D assets
-git clone --depth 1 https://github.com/Krutho-com/krutho-sdk-swift.git keys-src
-K=keys-src/KEYS
-W=$(mktemp -d)
-cp allowed_signers "$W/allowed_signers"
-```
+`release-root.pub` must hold exactly one key, and it must equal the key in your pinned `allowed_signers` line. Everything that follows trusts the pinned key, so a root key that differs from the pin fails. The script also checks that the pinned line has the principal `krutho-release`, the options `cert-authority,namespaces="krutho-release"` and a valid public key, and it prints the pinned key's fingerprint for you to confirm with Krutho.
 
-Without the GitHub CLI, download the same files from the release page.
+### 3. The revocation statement and list
 
-## 2. Check the root key against the pin
-
-`release-root.pub` must hold exactly one key, and it must equal the key in your pinned `allowed_signers` line. Stop if it does not.
-
-```sh
-grep -c . "$K/release-root.pub"          # prints 1
-ssh-keygen -l -E sha256 -f "$K/release-root.pub"
-if [ "$(cut -d' ' -f1,2 "$K/release-root.pub")" = "$(cut -d' ' -f3,4 allowed_signers)" ]; then
-  echo "ROOT KEY MATCHES PIN"
-else
-  echo "ROOT KEY DIFFERS FROM PIN: STOP"
-fi
-```
-
-The output must read `ROOT KEY MATCHES PIN`.
-
-## 3. Check the revocation statement and list
-
-The root key signs the revocation statement. Build the verification file from the pinned key, never from the downloaded `release-root.pub`.
-
-```sh
-printf 'krutho-root namespaces="krutho-revocation" %s\n' "$(cut -d' ' -f3,4 allowed_signers)" > "$W/allowed_root"
-ssh-keygen -Y verify -f "$W/allowed_root" -I krutho-root -n krutho-revocation \
-  -s "$K/revocation.txt.sig" < "$K/revocation.txt"
-```
-
-The form of `revocation.txt`: exactly these lines, in any order, and nothing else. The first four appear once each.
+The root key signs the revocation statement in the namespace `krutho-revocation`. The script builds the verification file from the pinned key, never from the downloaded `release-root.pub`. It then checks the form of `revocation.txt`: exactly these lines, in any order, and nothing else. The first four appear once each.
 
 ```
 sequence: <integer, 1 or more>
@@ -120,113 +104,25 @@ krl_sha256: <64 lowercase hex characters>
 recovery_sha256: <64 lowercase hex characters>    (zero or more lines)
 ```
 
-```sh
-R="$K/revocation.txt"
-if grep -q -v -E '^(sequence: [1-9][0-9]*|issued: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z|next_update: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z|krl_sha256: [0-9a-f]{64}|recovery_sha256: [0-9a-f]{64})$' "$R"; then
-  echo "LINE OUTSIDE THE ALLOWED FORMS: STOP"
-else
-  echo "FORM OK"
-fi
-for f in sequence issued next_update krl_sha256; do
-  [ "$(grep -c "^$f: " "$R")" = 1 ] || echo "$f MUST APPEAR EXACTLY ONCE: STOP"
-done
-```
+The statement is fresh only if `issued` is at or before now, now is before `next_update`, and `issued` is before `next_update`. Both timestamps must be real UTC dates and times: month 01 to 12, a day that exists in that month, hour 00 to 23, minute and second 00 to 59. A malformed or impossible timestamp fails. The script validates the date itself and does not parse it with `date`, so GNU and BSD systems behave alike. An expired statement fails: fetch the current `main` again, or ask Krutho for the current statement.
 
-The statement is fresh only if `issued` is at or before now, now is before `next_update`, and `issued` is before `next_update`. Both timestamps must also be real UTC dates and times: month 01 to 12, a day that exists in that month, hour 00 to 23, minute and second 00 to 59. A malformed or impossible timestamp fails.
+The SHA-256 of `revoked.krl` must equal `krl_sha256`, and the file must parse as an OpenSSH key revocation list (KRL).
 
-```sh
-ISSUED=$(grep '^issued: ' "$R" | cut -d' ' -f2)
-NEXT=$(grep '^next_update: ' "$R" | cut -d' ' -f2)
-NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+### 4. The release signature
 
-# A real date survives a round trip through date. GNU date and BSD or macOS date differ in syntax.
-if date --version > /dev/null 2>&1; then
-  rt() { date -u -d "$1" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null; }
-else
-  rt() { date -u -j -f %Y-%m-%dT%H:%M:%SZ "$1" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null; }
-fi
-for t in "$ISSUED" "$NEXT"; do
-  [ "$(rt "$t")" = "$t" ] || echo "NOT A REAL UTC DATE AND TIME ($t): STOP"
-done
+The script verifies `SHA256SUMS.sig` over `SHA256SUMS` against your pinned line, in the namespace `krutho-release`, and always passes the revocation list. A certificate that is expired, revoked, from another authority or without the `krutho-release` principal fails. There is no workaround for a failure, including an expired signing certificate. If the certificate expired, download the release again after Krutho re-signs it (see Certificate expiry). To read a certificate's validity, run `ssh-keygen -L -f keys-src/KEYS/release-signing-cert-1.pub`.
 
-# The timestamps have one fixed form, so string order is time order.
-lt() { printf '%s\n%s\n' "$1" "$2" | LC_ALL=C sort -c -u 2> /dev/null; }   # first is before second
-le() { printf '%s\n%s\n' "$1" "$2" | LC_ALL=C sort -c 2> /dev/null; }      # first is at or before second
-lt "$ISSUED" "$NEXT" || echo "ISSUED IS NOT BEFORE NEXT_UPDATE: STOP"
-le "$ISSUED" "$NOW"  || echo "STATEMENT IS ISSUED IN THE FUTURE: STOP"
-lt "$NOW" "$NEXT"    || echo "STATEMENT EXPIRED: STOP"
-```
+### 5. The files
 
-None of these lines may print. `verify-release.sh` does the same checks without `date` parsing, so GNU and BSD `date` behave alike.
+`SHA256SUMS` must list exactly the four expected names, once each, in the form `<64 hex characters>`, two spaces, name. The script then hashes each of the four files and requires each hash to equal its line. A file that does not appear in `SHA256SUMS` is unsigned: do not ship it. The script prints the SHA-256 of each file it verified.
 
-The hash of `revoked.krl` must equal `krl_sha256`, and the file must parse as an OpenSSH KRL.
+### 6. Your pins
 
-```sh
-printf '%s  revoked.krl\n' "$(grep '^krl_sha256: ' "$R" | cut -d' ' -f2)" > "$W/krl.sum"
-(cd "$K" && sha256sum -c "$W/krl.sum")              # Linux; prints: revoked.krl: OK
-(cd "$K" && shasum -a 256 -c "$W/krl.sum")          # macOS; prints: revoked.krl: OK
-ssh-keygen -Q -l -f "$K/revoked.krl"                 # must exit 0
-```
+`SHA256SUMS` names no version. The signature proves only that Krutho signed these hashes, not that they belong to the version your software expects. For every file you use, the script compares the signed hash with the SHA-256 you pass with `-p`, which you take from the version pinned in your own source. It refuses any mismatch, so a signed list from another release does not pass. Pin all four files: `NOTICES.md`, `krutho_verifier.h`, `libkrutho_verifier-linux-aarch64.so` and `libkrutho_verifier-linux-x86_64.so`. A file without a pin is checked against the signed list only.
 
-An expired statement fails. Fetch the current `main` again, or ask Krutho for the current statement.
+### An installed file
 
-## 4. Check the release signature
-
-Always pass the revocation list.
-
-```sh
-ssh-keygen -Y verify -f "$W/allowed_signers" -I krutho-release -n krutho-release \
-  -s assets/SHA256SUMS.sig -r "$K/revoked.krl" < assets/SHA256SUMS
-```
-
-It must print `Good "krutho-release" signature`. There is no workaround for a failure, including an expired signing certificate. If the certificate expired, download the release again after Krutho re-signs it (see Certificate expiry). Read a certificate's validity with `ssh-keygen -L -f "$K/release-signing-cert-1.pub"`.
-
-## 5. Check the files
-
-First, `SHA256SUMS` must list exactly the four expected names, once each, in the form `<64 hex characters>`, two spaces, name.
-
-```sh
-printf '%s\n' NOTICES.md krutho_verifier.h libkrutho_verifier-linux-aarch64.so libkrutho_verifier-linux-x86_64.so \
-  | LC_ALL=C sort > "$W/expected"
-if grep -q -v -E '^[0-9a-f]{64}  [^ ]+$' assets/SHA256SUMS; then
-  echo "MALFORMED LINE IN SHA256SUMS: STOP"
-elif cut -c67- assets/SHA256SUMS | LC_ALL=C sort | diff - "$W/expected"; then
-  echo NAMES OK
-fi
-```
-
-It must print `NAMES OK`. Then check each file against its line.
-
-```sh
-(cd assets && sha256sum -c SHA256SUMS)          # Linux
-(cd assets && shasum -a 256 -c SHA256SUMS)      # macOS
-```
-
-Every file must print `OK`. A file that does not appear in `SHA256SUMS` is unsigned: do not ship it.
-
-## 6. Match the files to your pin
-
-`SHA256SUMS` names no version. The signature proves only that Krutho signed these hashes, not that they belong to the version your software expects. For every file you use, read its hash from the verified `SHA256SUMS` and compare it with the SHA-256 and the version pinned in your own source. Refuse any mismatch. A signed list from another release must not pass.
-
-```sh
-grep '  libkrutho_verifier-linux-x86_64\.so$' assets/SHA256SUMS | cut -d' ' -f1    # equals your pinned hash
-grep '  libkrutho_verifier-linux-aarch64\.so$' assets/SHA256SUMS | cut -d' ' -f1  # equals your pinned hash
-grep '  krutho_verifier\.h$' assets/SHA256SUMS | cut -d' ' -f1                    # equals your pinned hash
-```
-
-## Check one installed file
-
-Compute the SHA-256 of the installed file and compare it with its line in the verified `SHA256SUMS`. Look the line up by the original asset name, for example `libkrutho_verifier-linux-x86_64.so`, even if you installed the file under another name.
-
-```sh
-sha256sum /path/to/installed.so                                   # Linux
-shasum -a 256 /path/to/installed.so                               # macOS
-grep '  libkrutho_verifier-linux-x86_64\.so$' assets/SHA256SUMS
-```
-
-The two hashes must be equal, and equal to the hash pinned in your source.
-
-Delete the scratch directory (`rm -rf "$W"`) when you finish.
+The script checks the files in the release directory. An installed copy must have the same bytes. Compute the SHA-256 of the installed file and compare it with the hash the script printed for the original asset name, for example `libkrutho_verifier-linux-x86_64.so`, even if you installed the file under another name. It must also equal the hash pinned in your source.
 
 ## When verification fails
 
