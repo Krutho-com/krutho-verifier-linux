@@ -3,7 +3,7 @@
 Each release of this repository publishes these files on its GitHub Release:
 
 - `libkrutho_verifier-linux-x86_64.so` and `libkrutho_verifier-linux-aarch64.so`;
-- `krutho_verifier.h`, `LICENSE` and `NOTICES.md`;
+- `krutho/verifier_sdk.h`, `LICENSE` and `NOTICES.md`;
 - `SHA256SUMS`, a list of SHA-256 hashes;
 - `SHA256SUMS.sig`, an OpenSSH signature over `SHA256SUMS`, made with a signing key that the Krutho release root key certifies.
 

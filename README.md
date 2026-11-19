@@ -2,7 +2,7 @@
 
 Signed Krutho verifier library for Linux (x86_64, aarch64). It verifies Krutho credentials inside your own software. This repository carries releases only: binaries, a header, checksums and signatures. It carries no source.
 
-**Licence status: draft, pending approval.** See `LICENSE`. The licence allows use and redistribution of the unmodified signed binary, alone or bundled in other software and container images, with the licence and `NOTICES.md` alongside.
+**Licence:** the Krutho Verifier Binary Licence (Pilot), approved 2026-11-18. See `LICENSE`. The licence allows use and redistribution of the unmodified signed binary, alone or bundled in other software and container images, with the licence and `NOTICES.md` alongside.
 
 ## What a release carries
 
@@ -10,7 +10,7 @@ Each GitHub Release (tag `verifier-v<version>`, first `verifier-v0.1.0`) has the
 
 - `libkrutho_verifier-linux-x86_64.so`
 - `libkrutho_verifier-linux-aarch64.so`
-- `krutho_verifier.h`, the C header
+- `krutho/verifier_sdk.h`, the C header
 - `SHA256SUMS`, hashes of the files above plus `LICENSE` and `NOTICES.md`
 - `SHA256SUMS.sig`, an OpenSSH signature over `SHA256SUMS`, made by a signing key that the Krutho release root key certifies
 - `LICENSE` and `NOTICES.md`
